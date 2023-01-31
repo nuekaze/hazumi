@@ -43,34 +43,55 @@ def remove_emotes(message):
             new.append(w)
     return ' '.join(new)
 
+next_force_response = 5
+force_response = 0
+
 def make_response():
     global history
     global wait
+    global next_force_response
+    global force_response
     while 1:
         if wait:
             input_text = "\n".join(history)
             set_seed(32)
             response = generator(input_text,
-                                 num_beams=1, 
-                                 num_return_sequences=1
-                                 )[0]['generated_text']
+                                num_beams=1, 
+                                num_return_sequences=1
+                                )[0]['generated_text']
 
             try:
-                #print('\n'+'\n'.join(response.split('\n')[len(history):len(history)+6])+'\n')
                 response = response.split('\n')[len(history):len(history)+6]
                 for i in range(5):
                     if response[i].split(': ')[0] == MY_NAME and "http" not in response[i].split(': ')[1]:
-                        asyncio.run_coroutine_threadsafe(send_message(response[i].split(': ')[1]), client.loop)
+                        asyncio.run_coroutine_threadsafe(
+                                send_message(response[i].split(': ')[1]), client.loop)
+                        
+                        next_force_response = random.randint(3, 10)
+                        force_response = 0
+
                         if response[i+1].split(': ')[0] == MY_NAME and "http" not in response[i+1].split(': ')[1]:
                             time.sleep(2)
-                            asyncio.run_coroutine_threadsafe(send_message(response[i+1].split(': ')[1]), client.loop)
+                            asyncio.run_coroutine_threadsafe(
+                                    send_message(response[i+1].split(': ')[1]), client.loop)
                         break
+
+                if force_response >= next_force_response:
+                    if "http" not in response[0].split(': ')[1] and "Hazuki" not in response[0].split(': ')[1]:
+                        asyncio.run_coroutine_threadsafe(
+                                send_message(response[0].split(': ')[1]), client.loop)
+                    force_response = 0
+                    next_force_response = random.randint(3, 10)
+                    
+                else:
+                    force_response += 1
+
             except IndexError:
                 pass
 
             wait = 0
 
-        time.sleep(5)
+        time.sleep(3)
             
 wait = 0
 
@@ -79,15 +100,19 @@ async def on_message(ctx):
     global history
     global wait
     global channel
+    
     if ctx.channel.id == CHANNEL and "http" not in ctx.content:
         message = remove_emotes(ctx.content)
         channel = ctx.channel
-        history.append("%s: %s" % (str(ctx.author).split('#')[0], message))
-        if len(history) > 100:
-            history = history[100:]
-        open("history.txt", 'a').write("%s: %s\n" % (str(ctx.author).split('#')[0], message))
-        print("%s: %s" % (str(ctx.author).split('#')[0], message))
-        if wait == 0 and "%s" % str(ctx.author).split('#')[0] != MY_NAME:
+        author = str(ctx.author).split('#')[0]
+
+        history.append("%s: %s" % (author, message))
+        open("history.txt", 'a').write("%s: %s\n" % (author, message))
+        history = history[-100:]
+
+        print("%s: %s" % (author, message))
+
+        if wait == 0 and "%s" % author != MY_NAME:
             wait = 1
 
 responder_thread = threading.Thread(target=make_response)
